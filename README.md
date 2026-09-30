@@ -1,6 +1,6 @@
 # PaddleFormers CINN Model Test Suite
 
-这是一个按模型组织的 PaddleFormers 动态图/CINN 可复现测试仓。每个模型目录都提供相同的两个公开入口：动态图入口和 CINN 入口。模型的 checkpoint、数据、上游 commit、补丁和结果口径由模型目录自己的说明文件定义。
+这是一个按模型组织的 PaddleFormers 动态图/CINN 可复现测试仓。每个模型目录都提供相同的两个公开入口：动态图入口和 CINN 入口。CINN 入口可以按模型说明只编译可支持的子图，其余模块隔离在动态图；它不默认意味着整个模型都被静态化。模型的 checkpoint、数据、上游 commit、补丁和结果口径由模型目录自己的说明文件定义。
 
 ## 模型目录约定
 
@@ -9,7 +9,7 @@
 ```text
 <model>/
 ├── run_model.sh                 # 动态图公开入口
-├── run_model_cinn.sh            # 静态图+CINN 公开入口
+├── run_model_cinn.sh            # 可支持子图+CINN 公开入口（范围由模型说明定义）
 ├── run_model.py                 # 模型计算、校验和结果汇总
 ├── run_model_common.sh          # 两个入口共享的 shell 编排层
 ├── run_model.md                 # 模型专属环境、数据和验收说明
@@ -126,6 +126,7 @@ path=/absolute/path/to/checkpoint
 - `mean_steady_latency_ms`：去掉 warmup 后的平均 forward 延迟。
 - `steady_fps`：稳态 forward 吞吐。当前 Gemma3 runner 的 batch size 是 1，计算为 `1000 / mean_steady_latency_ms`；其他模型应在自己的 `run_model.md` 中明确计算口径。
 - `logits_checksum`/`logits_abs_checksum`：有限性和粗粒度数值回归信号，不是精度指标，也不要求动态图与 CINN 位级相等。
+- `cinn_scope`/`static_subgraph_count`：实际进入 CINN 的边界和子图数量；模型若采用局部路线，应同时记录 `dynamic_scope`。
 
 ### 动态/CINN 对比口径
 

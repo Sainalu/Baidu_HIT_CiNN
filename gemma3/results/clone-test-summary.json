@@ -1,34 +1,31 @@
 {
-  "date_utc": "2026-09-30",
-  "tested_test_suite_commit": "b9eaaf67bd852aef1c1fd105ac7dad17ab2b80da",
-  "post_test_hardening_commit": "fdd644198ee19cc6b55bbbf38e3a0cdb907aafdf",
-  "latest_portability_fix_commit": "1cd3fac239177323d5f9d5ba28e062017641d3d3",
-  "remote_paddleformers_clone_verified": true,
+  "date_utc": "2026-10-01",
+  "validation_state": "clean pinned PaddleFormers checkout; current test-suite working tree",
+  "tested_test_suite_base_commit": "725d167dfac6b70dce87ac363c508cf6a09a90c9",
+  "validated_test_suite_commit": "08f9366c92ea6dd297379873acc3dbd0be0be866",
+  "remote_reclone_after_publication": false,
   "paddleformers_commit": "941b463475ef0bbb3f88e2d1e1bcee4181f98e0b",
   "test_repository_remote": "https://github.com/Sainalu/Baidu_HIT_CiNN.git",
-  "latest_remote_pull_test_commit": "7edeae9c644848920c9de0b4ae35f9b82528f79a",
-  "clone_directory": "fresh temporary clone (absolute path intentionally omitted)",
   "checkpoint_weight_sha256": "33029a880dc17d16abdac2327e7891bbb1fb7483bfaaf4d962916c5fa8f4f75c",
-  "scope": {
-    "train_dynamic": {"exit_code": 0, "steps": 3, "losses_finite": true},
-    "infer_dynamic": {"exit_code": 0, "steps": 3, "checksums_finite": true},
-    "train_cinn": {
-      "exit_code": 0,
-      "steps": 3,
-      "losses_finite": true,
-      "cinn_compile_count": 1
-    },
-    "infer_cinn": {
-      "exit_code": 0,
-      "steps": 3,
-      "checksums_finite": true,
-      "cinn_compile_count": 1
-    }
+  "strategy": {
+    "outer_graph_mode": "dynamic",
+    "cinn_scope": "model.model.language_model.layers[*].mlp",
+    "static_subgraph_count": 4,
+    "dynamic_scope": "vision_tower, multimodal fusion, image-token mask, attention mask, rotary embedding, RMSNorm, attention, decoder layer loop, final norm, lm_head, loss",
+    "unsupported_static_code_rewritten": false,
+    "patch_files": [
+      "paddleformers/datasets/template/template.py",
+      "paddleformers/transformers/gemma3/modeling.py",
+      "paddleformers/transformers/gemma3/multimodal_text_modeling.py"
+    ],
+    "patch_purpose": "Gemma3 data template registration and reduced-layer checkpoint loading only"
   },
-  "remote_pull_test": {
-    "fresh_clone": true,
-    "steps": 3,
-    "warmup_steps": 1,
+  "functional_validation": {
+    "fresh_paddleformers_checkout": true,
+    "patch_applied_once": true,
+    "patch_idempotence_verified": true,
+    "steps": 20,
+    "warmup_steps": 2,
     "learning_rate": 0.0,
     "checkpoint": "external://gemma3-4b-text4-vision2-bf16",
     "data_train_sha256": "89270f9173230793f2171137d63f639e6d69db64450f598d49e0e8817b61c9d3",
@@ -36,43 +33,61 @@
     "train_dynamic": {
       "exit_code": 0,
       "losses_finite": true,
-      "first_step_time_s": 1.6533735478296876,
-      "mean_steady_step_time_s": 0.07746475853491575,
-      "steady_fps": 12.909095941340466
+      "first_step_time_s": 1.6315677880775183,
+      "mean_steady_step_time_s": 0.06745933643024829,
+      "steady_fps": 14.823744983527693,
+      "cinn_scope": "none",
+      "static_subgraph_count": 0
     },
     "train_cinn": {
       "exit_code": 0,
       "losses_finite": true,
       "cinn_compile_count": 1,
-      "first_step_time_s": 118.13870157697238,
-      "mean_steady_step_time_s": 0.033585235476493835,
-      "steady_fps": 29.774988497546662
+      "first_step_time_s": 6.236058732960373,
+      "mean_steady_step_time_s": 0.06797189286185636,
+      "steady_fps": 14.711963399818279,
+      "steady_fps_change_percent": -0.7540711462159289,
+      "max_absolute_loss_diff": 0.093505859375,
+      "cinn_scope": "model.model.language_model.layers[*].mlp",
+      "static_subgraph_count": 4
     },
     "infer_dynamic": {
       "exit_code": 0,
       "checksums_finite": true,
-      "first_step_latency_ms": 820.2832450624555,
-      "mean_steady_latency_ms": 31.96366596966982,
-      "steady_fps": 31.28552278543067
+      "first_step_latency_ms": 808.8897750712931,
+      "mean_steady_latency_ms": 30.549447737737662,
+      "steady_fps": 32.73381596239798,
+      "cinn_scope": "none",
+      "static_subgraph_count": 0
     },
     "infer_cinn": {
       "exit_code": 0,
       "checksums_finite": true,
       "cinn_compile_count": 1,
-      "first_step_latency_ms": 51696.43746386282,
-      "mean_steady_latency_ms": 13.003251980990171,
-      "steady_fps": 76.903839244362
+      "first_step_latency_ms": 3641.503213904798,
+      "mean_steady_latency_ms": 34.143140487786795,
+      "steady_fps": 29.28845986963929,
+      "latency_reduction_percent": -11.763527710551221,
+      "cinn_scope": "model.model.language_model.layers[*].mlp",
+      "static_subgraph_count": 4
     }
   },
+  "optimizer_validation": {
+    "steps": 3,
+    "learning_rate": 1e-06,
+    "dynamic_exit_code": 0,
+    "cinn_exit_code": 0,
+    "optimizer": "AdamW",
+    "losses_finite": true,
+    "gradient_crosses_static_boundary": true
+  },
+  "superseded_result": {
+    "strategy": "whole multimodal train/infer wrapper converted with full_graph=True",
+    "status": "historical only; do not compare directly with partial-CINN results"
+  },
   "notes": [
-    "The test repository and PaddleFormers were cloned into a fresh temporary directory.",
-    "The test entry applied the PaddleFormers compatibility patch once and detected it as already applied on subsequent runs.",
-    "Checkpoint and all packaged NPZ files were validated against their manifests before each run.",
-    "This is a clean-clone functional smoke test, not a replacement for the existing 1000-step convergence/performance evidence.",
+    "CINN compiled successfully, but the 20-step single-trial partial boundary did not improve steady performance on this reduced model.",
+    "This is a functional and boundary-isolation validation, not a convergence test or final performance result.",
     "Paddle reported a cuDNN build/runtime mismatch: build 9.13, runtime 9.9."
-    ,
-    "Post-test hardening was validated from additional fresh clones, including ignored LOCATION.local checkpoint resolution and model-prefixed output paths."
-    ,
-    "A fresh HTTPS clone from the official PaddleFormers GitHub repository was checked out at the pinned commit; the test repository then applied its patch and completed a dynamic inference smoke run."
   ]
 }

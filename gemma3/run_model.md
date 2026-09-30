@@ -7,14 +7,31 @@
 | 文件 | 作用 |
 | --- | --- |
 | `run_model.sh` | 调用同一个 `run_model.py`，运行纯动态图 |
-| `run_model_cinn.sh` | 调用同一个 `run_model.py`，运行 `to_static(full_graph=True)`+CINN |
+| `run_model_cinn.sh` | 调用同一个 `run_model.py`，只对已验证的 MLP 子图执行 `to_static(full_graph=True)`+CINN |
 | `run_model_common.sh` | 两个入口共享的校验、路径解析、环境设置和日志编排，不直接实现模型计算 |
 | `run_model.py` | checkpoint/data 校验、训练或推理、计时和 JSON 输出 |
-| `patches/paddleformers-gemma3-cinn.patch` | 固定 PaddleFormers commit 的 Gemma3 CINN 兼容补丁 |
+| `patches/paddleformers-gemma3-cinn.patch` | 固定 PaddleFormers commit 的 Gemma3 数据/checkpoint 适配补丁；不改写动态图模型以迁就 CINN |
 | `paddleformers.commit` | 要求的上游 commit |
 | `checkpoint/README.md` | checkpoint 结构、精度、大小和 SHA256 |
 
 脚本会先检查 PaddleFormers commit，再幂等应用 patch：已应用则直接运行；未应用且可干净应用则自动应用；源码状态不明确时停止，避免覆盖用户修改。
+
+## 1.1 静态边界与动态图隔离
+
+本版本不再把整个 Gemma3 多模态 forward、训练 loss 或推理 wrapper 包成一个
+`to_static(full_graph=True)`。经验证可编译的边界只有语言模型各 decoder layer 的
+`mlp` 子层：
+
+```text
+CINN:    model.model.language_model.layers[*].mlp
+动态图:  vision tower、图像特征/占位符融合、mask、RoPE、RMSNorm、attention、
+         decoder layer loop、final norm、lm_head、loss 以及训练/推理 wrapper
+```
+
+这样做的含义是：CINN flags 仍在 `cinn` 模式开启，但 flags 本身不会把动态图代码
+自动变成静态图；只有 `run_model.py` 显式包住的 MLP 子图会触发 CINN 编译。无法支持
+静态图的部分保持原始动态图执行，也不对它们做源码改写。梯度可以跨越 MLP 子图回传，
+因此训练的 forward、backward 和 optimizer step 仍是完整路径。
 
 ## 2. 环境
 
@@ -150,7 +167,11 @@ CINN 唯一可信的生效标志：
 Compiling subgraph with CINN backend
 ```
 
-`run_model_cinn.sh` 会检查该标志，缺失时返回非零。首次 forward 包含懒 trace/CINN 编译；稳态指标排除 `WARMUP_STEPS`。报告性能时必须分别说明首编译时间和稳态时间。
+`run_model_cinn.sh` 会检查该标志，缺失时返回非零。当前 checkpoint 有 4 个文本层，
+JSON 的 `static_subgraph_count` 应为 4；日志中的编译 marker 是后端编译事件数，
+不保证与包装的 layer 数相等。首次 forward 包含 MLP 子图的懒 trace/CINN 编译；
+稳态指标排除 `WARMUP_STEPS`。报告性能时必须分别说明首编译时间和稳态时间，且不能
+把未编译的动态图部分当成 CINN 加速范围。
 
 ## 9. 输出
 
@@ -177,6 +198,8 @@ gemma3/results/infer-cinn.json
 - `first_step_time_s`：首步耗时。CINN 模式包含首次 trace/编译，必须和稳态指标分开报告。
 - `mean_steady_step_time_s`、`steady_fps`：去掉 `warmup_steps` 后的训练速度；当前 batch size 为 1。
 - `optimizer`、`learning_rate`：确认是否真正更新了参数。`learning_rate=0` 时是 `no-update/clear-grad`，属于性能/功能冒烟。
+- `cinn_scope`、`static_subgraph_count`：说明实际进入 CINN 的子图范围和包装数量；动态图模式应分别为 `none` 和 `0`。
+- `dynamic_scope`、`outer_graph_mode`：说明被隔离保留在动态图的模块；当前 `outer_graph_mode` 固定为 `dynamic`。
 
 推理 JSON 中最重要的字段是：
 
@@ -187,32 +210,37 @@ gemma3/results/infer-cinn.json
 
 性能比较只使用稳态字段：训练吞吐提升为 `(CINN steady_fps / dynamic steady_fps - 1) * 100%`；推理延迟降低为 `(dynamic mean_steady_latency_ms - CINN mean_steady_latency_ms) / dynamic mean_steady_latency_ms * 100%`。首步编译时间单独列出。
 
-### 9.2 本次清洁克隆冒烟结果
+### 9.2 本次局部 CINN 清洁克隆冒烟结果
 
-以下结果来自从远端重新拉取测试仓、固定 PaddleFormers commit、使用外部 checkpoint 的 3-step 测试，`warmup_steps=1`、`learning_rate=0`：
+以下结果来自固定 PaddleFormers commit 的干净 checkout、自动应用精简 patch、使用外部
+checkpoint 的 20-step 单次测试，`warmup_steps=2`、`learning_rate=0`。旧的“整个
+wrapper 全图静态化”结果仅供历史参考，不能与本表直接比较。
 
-| 任务 | 模式 | 首步 | 稳态指标 | CINN 编译 |
+| 任务 | 模式 | 首步 | 稳态指标 | 静态范围 |
 | --- | --- | ---: | ---: | ---: |
-| 训练 | 动态图 | 1.653 s | 12.91 FPS | 不适用 |
-| 训练 | CINN | 118.139 s | 29.77 FPS | 1 次 |
-| 推理 | 动态图 | 820.283 ms | 31.29 FPS（31.964 ms） | 不适用 |
-| 推理 | CINN | 51696.437 ms | 76.90 FPS（13.003 ms） | 1 次 |
+| 训练 | 动态图 | 1.632 s | 14.82 FPS | none |
+| 训练 | CINN | 6.236 s | 14.71 FPS | 4 个 MLP 子图 |
+| 推理 | 动态图 | 808.890 ms | 30.549 ms（32.73 FPS） | none |
+| 推理 | CINN | 3641.503 ms | 34.143 ms（29.29 FPS） | 4 个 MLP 子图 |
 
-这组数据说明 CINN 在本次节点的稳态执行路径已经生效，但首步包含很重的编译开销，不能把首步时间当作稳态加速结果。它是清洁克隆和功能验收记录，不是全量收敛或最终性能报告；正式报告还需要更长 step、更稳定的硬件/软件版本和统一的 cuDNN 环境。当前验证节点存在 cuDNN 编译版本 9.13、运行版本 9.9 不一致警告。
+本次单次短跑中，训练 FPS 变化为 -0.75%，推理延迟变化为 +11.76%，因此当前局部边界
+只能证明隔离和 CINN 编译正确，不能宣称性能提升。训练 20 步最大绝对 loss 差为
+0.09351，数值有限；推理 checksum 也有限。正式报告还需要更长 step、多次重复、稳定的
+硬件/软件版本和统一的 cuDNN 环境。当前验证节点存在 cuDNN 编译版本 9.13、运行版本
+9.9 不一致警告。
 
 ## 10. PaddleFormers 修改说明
 
-补丁包含：
+补丁只包含与静态边界无关的模型接入适配：
 
 - 注册 Gemma3 多模态数据模板。
-- sliding-window mask 向量化。
-- 避免静态 trace 中的 `paddle.finfo`、Python autocast context 和动态 tuple 处理。
-- 避免静态图 Tensor `.place` 和 `.item()` Python 条件。
-- 支持缩层 checkpoint 按目标层数加载。
-- 单卡 TP=1 不访问未初始化 Fleet 通信组。
-- 相应等价性/回归单测。
+- 支持高精度缩层 checkpoint 加载时按目标文本层数过滤多余权重。
 
-这些修改不改变 attention、MLP、视觉编码器和 loss 的数学定义。动态图和 CINN 使用同一份已打补丁源码。
+补丁不再修改 sliding-window mask、`paddle.finfo`、autocast、RoPE、RMSNorm、attention、
+动态 tuple、`.item()`/`.place` 条件或 Fleet 路径。它们属于当前不支持或尚未验证的静态
+范围，统一留在动态图。真正的 CINN 边界由 `run_model.py` 在模型加载后显式包住 MLP
+子层；因此动态模式和 CINN 模式共享同一份模型数学实现，差异只有 MLP 子图是否进入
+CINN。
 
 ## 11. 最小验收
 
@@ -224,5 +252,7 @@ gemma3/results/infer-cinn.json
 - CINN train exit 0，loss 有限且有编译标志。
 - dynamic infer exit 0，logits checksum 有限。
 - CINN infer exit 0，checksum 有限且有编译标志。
+- CINN 结果的 `cinn_scope` 为 `model.model.language_model.layers[*].mlp`，`static_subgraph_count`
+  与 checkpoint 文本层数一致；动态结果的 scope 为 `none`/`0`。
 
 `run_model_common.sh` 会把上述验收串起来：如果 commit、patch、checkpoint/data hash 或 CINN 编译标志不满足要求，入口会返回非零；它本身不改变 Gemma3 的网络数学定义。
