@@ -157,7 +157,7 @@ gemma3/results/infer-dynamic.json
 gemma3/results/infer-cinn.json
 ```
 
-可以用 `LOG` 和 `OUTPUT` 覆盖。正式对比时，动态/CINN 必须使用相同 checkpoint、数据、step、warmup、精度和学习率。
+可以用 `LOG` 和 `OUTPUT` 覆盖。相对路径统一按 `gemma3/` 目录解析，例如 `LOG=logs/custom.log`；正式对比时，动态/CINN 必须使用相同 checkpoint、数据、step、warmup、精度和学习率。
 
 ## 10. PaddleFormers 修改说明
 

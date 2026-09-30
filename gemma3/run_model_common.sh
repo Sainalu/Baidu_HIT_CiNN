@@ -65,6 +65,8 @@ WARMUP_STEPS=${WARMUP_STEPS:-2}
 LEARNING_RATE=${LEARNING_RATE:-0}
 OUTPUT=${OUTPUT:-${SCRIPT_DIR}/results/${TASK}-${MODE}.json}
 LOG=${LOG:-${SCRIPT_DIR}/logs/${TASK}-${MODE}.log}
+OUTPUT=$(resolve_path "${OUTPUT}")
+LOG=$(resolve_path "${LOG}")
 mkdir -p "$(dirname -- "${OUTPUT}")" "$(dirname -- "${LOG}")"
 
 COMMAND=(
