@@ -35,7 +35,10 @@ resolve_path() {
   if [[ "${value}" = /* ]]; then
     printf '%s\n' "${value}"
   else
-    printf '%s\n' "${SCRIPT_DIR}/${value}"
+    case "${value}" in
+      gemma3/*) printf '%s\n' "${REPO_DIR}/${value}" ;;
+      *) printf '%s\n' "${SCRIPT_DIR}/${value}" ;;
+    esac
   fi
 }
 
