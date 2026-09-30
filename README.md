@@ -24,7 +24,7 @@ PADDLEFORMERS_DIR=../../PaddleFormers CHECKPOINT_DIR=/path/to/checkpoint ./run_m
 PADDLEFORMERS_DIR=../../PaddleFormers CHECKPOINT_DIR=/path/to/checkpoint ./run_model_cinn.sh
 ```
 
-Gemma3 需要对固定 PaddleFormers commit 应用兼容 patch；两个入口会校验 commit 并幂等应用 patch。checkpoint 体积较大，因此默认通过 `CHECKPOINT_DIR` 或 `checkpoint/LOCATION.md` 定位，不直接提交普通 Git。若仓库服务支持 Git LFS，可按 `gemma3/checkpoint/README.md` 管理权重。
+Gemma3 需要对固定 PaddleFormers commit 应用兼容 patch；两个入口会校验 commit 并幂等应用 patch。checkpoint 体积较大，因此默认通过 `CHECKPOINT_DIR` 或本地忽略文件 `checkpoint/LOCATION.local` 定位，不直接提交普通 Git。若仓库服务支持 Git LFS，可按 `gemma3/checkpoint/README.md` 管理权重。
 
 > 上传远端前：将示例中的 `<TEST_REPOSITORY_URL>` 替换为真实仓库 URL，并为 checkpoint 配置团队可访问的制品下载地址或 Git LFS。当前本地仓不包含 3.4 GiB 权重本体。
 

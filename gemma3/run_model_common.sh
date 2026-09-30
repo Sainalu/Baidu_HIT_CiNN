@@ -49,7 +49,7 @@ if [[ -z "${CHECKPOINT_DIR:-}" ]]; then
   fi
 fi
 if [[ -z "${CHECKPOINT_DIR:-}" ]]; then
-  echo "ERROR: set CHECKPOINT_DIR or add path=<absolute-path> to checkpoint/LOCATION.md" >&2
+  echo "ERROR: set CHECKPOINT_DIR or add path=<absolute-path> to checkpoint/LOCATION.local" >&2
   exit 4
 fi
 CHECKPOINT_DIR=$(resolve_path "${CHECKPOINT_DIR}")

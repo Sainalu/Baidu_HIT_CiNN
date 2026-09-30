@@ -5,7 +5,7 @@
   "latest_portability_fix_commit": "1cd3fac239177323d5f9d5ba28e062017641d3d3",
   "remote_paddleformers_clone_verified": true,
   "paddleformers_commit": "941b463475ef0bbb3f88e2d1e1bcee4181f98e0b",
-  "clone_directory": "/tmp/cinn-clone-test-20260930-4UVt4y",
+  "clone_directory": "fresh temporary clone (absolute path intentionally omitted)",
   "checkpoint_weight_sha256": "33029a880dc17d16abdac2327e7891bbb1fb7483bfaaf4d962916c5fa8f4f75c",
   "scope": {
     "train_dynamic": {"exit_code": 0, "steps": 3, "losses_finite": true},

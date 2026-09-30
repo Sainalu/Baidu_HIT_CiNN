@@ -1,6 +1,6 @@
 {
-  "checkpoint": "/root/paddlejob/gpfsspace/luhao/98_BAIDU/CINN/gemma3/checkpoints/gemma3-4b-text4-vision2-bf16",
-  "input": "/root/paddlejob/gpfsspace/luhao/98_BAIDU/CINN/shared_data/multimodal_sft_docling/mini_train.jsonl",
+  "checkpoint": "external://gemma3-4b-text4-vision2-bf16",
+  "input": "shared_data/multimodal_sft_docling/mini_train.jsonl",
   "input_sha256": "89270f9173230793f2171137d63f639e6d69db64450f598d49e0e8817b61c9d3",
   "max_length": 512,
   "records": [
