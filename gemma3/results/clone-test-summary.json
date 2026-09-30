@@ -5,6 +5,8 @@
   "latest_portability_fix_commit": "1cd3fac239177323d5f9d5ba28e062017641d3d3",
   "remote_paddleformers_clone_verified": true,
   "paddleformers_commit": "941b463475ef0bbb3f88e2d1e1bcee4181f98e0b",
+  "test_repository_remote": "https://github.com/Sainalu/Baidu_HIT_CiNN.git",
+  "latest_remote_pull_test_commit": "7edeae9c644848920c9de0b4ae35f9b82528f79a",
   "clone_directory": "fresh temporary clone (absolute path intentionally omitted)",
   "checkpoint_weight_sha256": "33029a880dc17d16abdac2327e7891bbb1fb7483bfaaf4d962916c5fa8f4f75c",
   "scope": {
@@ -21,6 +23,45 @@
       "steps": 3,
       "checksums_finite": true,
       "cinn_compile_count": 1
+    }
+  },
+  "remote_pull_test": {
+    "fresh_clone": true,
+    "steps": 3,
+    "warmup_steps": 1,
+    "learning_rate": 0.0,
+    "checkpoint": "external://gemma3-4b-text4-vision2-bf16",
+    "data_train_sha256": "89270f9173230793f2171137d63f639e6d69db64450f598d49e0e8817b61c9d3",
+    "data_eval_sha256": "405452ff934dc275f0b8ec621a61664d89bceac4e8acd2056cb23de7a38d4caf",
+    "train_dynamic": {
+      "exit_code": 0,
+      "losses_finite": true,
+      "first_step_time_s": 1.6533735478296876,
+      "mean_steady_step_time_s": 0.07746475853491575,
+      "steady_fps": 12.909095941340466
+    },
+    "train_cinn": {
+      "exit_code": 0,
+      "losses_finite": true,
+      "cinn_compile_count": 1,
+      "first_step_time_s": 118.13870157697238,
+      "mean_steady_step_time_s": 0.033585235476493835,
+      "steady_fps": 29.774988497546662
+    },
+    "infer_dynamic": {
+      "exit_code": 0,
+      "checksums_finite": true,
+      "first_step_latency_ms": 820.2832450624555,
+      "mean_steady_latency_ms": 31.96366596966982,
+      "steady_fps": 31.28552278543067
+    },
+    "infer_cinn": {
+      "exit_code": 0,
+      "checksums_finite": true,
+      "cinn_compile_count": 1,
+      "first_step_latency_ms": 51696.43746386282,
+      "mean_steady_latency_ms": 13.003251980990171,
+      "steady_fps": 76.903839244362
     }
   },
   "notes": [

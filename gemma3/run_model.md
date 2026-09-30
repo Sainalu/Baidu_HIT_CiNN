@@ -44,7 +44,7 @@ nvidia-smi
 ```bash
 git clone https://github.com/PaddlePaddle/PaddleFormers.git
 git -C PaddleFormers checkout 941b463475ef0bbb3f88e2d1e1bcee4181f98e0b
-git clone <TEST_REPOSITORY_URL> model-test-suite
+git clone https://github.com/Sainalu/Baidu_HIT_CiNN.git model-test-suite
 ```
 
 两个目录可以是同级目录，也可以通过 `PADDLEFORMERS_DIR` 指定其他位置。
