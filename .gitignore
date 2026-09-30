@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 gemma3/checkpoint/files/
+gemma3/checkpoint/LOCATION.local
 gemma3/results/*.json
 gemma3/logs/*.log
 !gemma3/results/.gitkeep

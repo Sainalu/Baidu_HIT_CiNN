@@ -74,7 +74,7 @@ checkpoint 还必须包含 `config.json`、tokenizer、processor/preprocessor �
 export CHECKPOINT_DIR=/path/to/gemma3-4b-text4-vision2-bf16
 ```
 
-也可以仅在本地向 `checkpoint/LOCATION.md` 增加一行 `path=/absolute/path/...`，不要提交机器路径。
+也可以仅在本地创建已被 `.gitignore` 忽略的 `checkpoint/LOCATION.local`，内容为一行 `path=/absolute/path/...`。不要修改受版本控制的 `LOCATION.md`，也不要提交机器路径。
 
 ## 5. 数据
 

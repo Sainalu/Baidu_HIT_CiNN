@@ -40,7 +40,7 @@ resolve_path() {
 }
 
 if [[ -z "${CHECKPOINT_DIR:-}" ]]; then
-  LOCATION_FILE=${SCRIPT_DIR}/checkpoint/LOCATION.md
+  LOCATION_FILE=${SCRIPT_DIR}/checkpoint/LOCATION.local
   if [[ -f "${LOCATION_FILE}" ]]; then
     CHECKPOINT_DIR=$(sed -n 's/^path=//p' "${LOCATION_FILE}" | head -n 1)
   fi

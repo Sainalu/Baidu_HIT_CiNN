@@ -81,6 +81,14 @@ def validate_checkpoint(checkpoint: Path):
     if not manifest_path.is_file():
         raise RuntimeError(f"checkpoint manifest not found: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("architecture") != "Gemma3ForConditionalGeneration":
+        raise RuntimeError(f"unexpected checkpoint architecture: {manifest.get('architecture')}")
+    if manifest.get("dtype") != "bfloat16":
+        raise RuntimeError(f"unexpected checkpoint dtype: {manifest.get('dtype')}")
+    if manifest.get("text_layers") != 4 or manifest.get("vision_layers") != 2:
+        raise RuntimeError(
+            f"unexpected checkpoint layers: text={manifest.get('text_layers')} vision={manifest.get('vision_layers')}"
+        )
     entries = {entry["file"]: entry for entry in manifest["files"]}
     missing = sorted(set(CHECKPOINT_FILES) - set(entries))
     if missing:

@@ -17,4 +17,4 @@ The 3.4 GiB checkpoint is intentionally not duplicated in ordinary Git. Set:
 export CHECKPOINT_DIR=/absolute/path/to/gemma3-4b-text4-vision2-bf16
 ```
 
-Alternatively, add `path=/absolute/path/...` to `LOCATION.md` in a local checkout. Do not commit machine-specific paths. If the remote supports Git LFS, put checkpoint files under `checkpoint/files/` and remove that path from the root `.gitignore`.
+Alternatively, create the ignored file `LOCATION.local` containing `path=/absolute/path/...`. Do not edit the tracked `LOCATION.md` or commit machine-specific paths. If the remote supports Git LFS, put checkpoint files under `checkpoint/files/` and remove that path from the root `.gitignore`.
