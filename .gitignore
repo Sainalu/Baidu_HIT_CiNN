@@ -4,6 +4,12 @@ __pycache__/
 **/checkpoint/files/
 **/checkpoint/LOCATION.local
 **/results/*.json
+**/results/**/*.json
+**/results/*.png
+**/results/**/*.png
 **/logs/*.log
+**/logs/**/*.log
 !**/results/.gitkeep
+!**/results/**/.gitkeep
 !**/logs/.gitkeep
+!**/logs/**/.gitkeep
