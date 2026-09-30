@@ -1,8 +1,8 @@
 {
   "date_utc": "2026-10-01",
-  "validation_state": "clean pinned PaddleFormers checkout; current test-suite working tree",
+  "validation_state": "clean pinned PaddleFormers checkout; committed local clone",
   "tested_test_suite_base_commit": "725d167dfac6b70dce87ac363c508cf6a09a90c9",
-  "validated_test_suite_commit": "08f9366c92ea6dd297379873acc3dbd0be0be866",
+  "validated_test_suite_commit": "a0cab41f31ed51164baf65418593168583eace76",
   "remote_reclone_after_publication": false,
   "paddleformers_commit": "941b463475ef0bbb3f88e2d1e1bcee4181f98e0b",
   "test_repository_remote": "https://github.com/Sainalu/Baidu_HIT_CiNN.git",
