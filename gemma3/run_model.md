@@ -11,7 +11,6 @@
 | train.sh | 正式单任务训练入口，MODE=dynamic 或 cinn |
 | infer.sh | 正式单任务推理入口，MODE=dynamic 或 cinn |
 | run_model.py | 一次运行一个 task，负责加载、计算、计时和 task JSON |
-| run_model_common.sh | commit、patch、路径、环境、日志和 all-task 编排 |
 | scripts/aggregate_results.py | 合并 train/infer JSON 为 results/<mode>.json |
 | patches/paddleformers-gemma3-cinn.patch | Gemma3 全图 CINN 兼容补丁 |
 | paddleformers.commit | 要求的上游 commit |
