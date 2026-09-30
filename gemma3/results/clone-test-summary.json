@@ -1,0 +1,31 @@
+{
+  "date_utc": "2026-09-30",
+  "tested_test_suite_commit": "b9eaaf67bd852aef1c1fd105ac7dad17ab2b80da",
+  "post_test_hardening_commit": "fdd644198ee19cc6b55bbbf38e3a0cdb907aafdf",
+  "paddleformers_commit": "941b463475ef0bbb3f88e2d1e1bcee4181f98e0b",
+  "clone_directory": "/tmp/cinn-clone-test-20260930-4UVt4y",
+  "checkpoint_weight_sha256": "33029a880dc17d16abdac2327e7891bbb1fb7483bfaaf4d962916c5fa8f4f75c",
+  "scope": {
+    "train_dynamic": {"exit_code": 0, "steps": 3, "losses_finite": true},
+    "infer_dynamic": {"exit_code": 0, "steps": 3, "checksums_finite": true},
+    "train_cinn": {
+      "exit_code": 0,
+      "steps": 3,
+      "losses_finite": true,
+      "cinn_compile_count": 1
+    },
+    "infer_cinn": {
+      "exit_code": 0,
+      "steps": 3,
+      "checksums_finite": true,
+      "cinn_compile_count": 1
+    }
+  },
+  "notes": [
+    "The test repository and PaddleFormers were cloned into a fresh temporary directory.",
+    "The test entry applied the PaddleFormers compatibility patch once and detected it as already applied on subsequent runs.",
+    "Checkpoint and all packaged NPZ files were validated against their manifests before each run.",
+    "This is a clean-clone functional smoke test, not a replacement for the existing 1000-step convergence/performance evidence.",
+    "Paddle reported a cuDNN build/runtime mismatch: build 9.13, runtime 9.9."
+  ]
+}
