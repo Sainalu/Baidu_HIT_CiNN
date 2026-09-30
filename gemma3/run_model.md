@@ -1,11 +1,14 @@
 # Gemma3 动态图/CINN 复现说明
 
+本文件只描述 Gemma3 的模型专属要求；通用目录约定、入口参数、结果字段和 `run_model_common.sh` 说明见仓库根目录的 [`README.md`](../README.md)。
+
 ## 1. 入口
 
 | 文件 | 作用 |
 | --- | --- |
 | `run_model.sh` | 调用同一个 `run_model.py`，运行纯动态图 |
 | `run_model_cinn.sh` | 调用同一个 `run_model.py`，运行 `to_static(full_graph=True)`+CINN |
+| `run_model_common.sh` | 两个入口共享的校验、路径解析、环境设置和日志编排，不直接实现模型计算 |
 | `run_model.py` | checkpoint/data 校验、训练或推理、计时和 JSON 输出 |
 | `patches/paddleformers-gemma3-cinn.patch` | 固定 PaddleFormers commit 的 Gemma3 CINN 兼容补丁 |
 | `paddleformers.commit` | 要求的上游 commit |
@@ -42,12 +45,12 @@ nvidia-smi
 ## 3. 拉取 PaddleFormers 与测试仓
 
 ```bash
-git clone https://github.com/PaddlePaddle/PaddleFormers.git
-git -C PaddleFormers checkout 941b463475ef0bbb3f88e2d1e1bcee4181f98e0b
-git clone https://github.com/Sainalu/Baidu_HIT_CiNN.git model-test-suite
+git clone <PADDLEFORMERS_URL> /path/to/PaddleFormers
+git clone <TEST_REPOSITORY_URL> /path/to/model-test-suite
+git -C /path/to/PaddleFormers checkout 941b463475ef0bbb3f88e2d1e1bcee4181f98e0b
 ```
 
-两个目录可以是同级目录，也可以通过 `PADDLEFORMERS_DIR` 指定其他位置。
+两个目录可以是同级目录，也可以通过 `PADDLEFORMERS_DIR` 指定其他位置。测试仓当前远端为 `https://github.com/Sainalu/Baidu_HIT_CiNN.git`，但脚本不依赖固定的仓库地址。
 
 ## 4. Checkpoint
 
@@ -126,8 +129,15 @@ LEARNING_RATE=1e-6 STEPS=1000 WARMUP_STEPS=20 ./run_model_cinn.sh
 本入口的推理定义为多模态 teacher-forced forward logits，不是完整 autoregressive generate：
 
 ```bash
-TASK=infer DATA_DIR=data/eval STEPS=20 WARMUP_STEPS=2 ./run_model.sh
-TASK=infer DATA_DIR=data/eval STEPS=20 WARMUP_STEPS=2 ./run_model_cinn.sh
+PADDLEFORMERS_DIR=/path/to/PaddleFormers \
+CHECKPOINT_DIR=/path/to/checkpoint \
+TASK=infer DATA_DIR=data/eval STEPS=20 WARMUP_STEPS=2 \
+./run_model.sh
+
+PADDLEFORMERS_DIR=/path/to/PaddleFormers \
+CHECKPOINT_DIR=/path/to/checkpoint \
+TASK=infer DATA_DIR=data/eval STEPS=20 WARMUP_STEPS=2 \
+./run_model_cinn.sh
 ```
 
 计时包含模型 forward 和 GPU 同步，不含 NPZ 读取、Tensor 创建及 Host-to-Device。输出包含 latency、FPS、首步时间和 logits checksum。
@@ -159,6 +169,37 @@ gemma3/results/infer-cinn.json
 
 可以用 `LOG` 和 `OUTPUT` 覆盖。`logs/custom.log` 按 `gemma3/` 目录解析；为兼容旧命令，`gemma3/logs/custom.log` 按仓库根目录解析。正式对比时，动态/CINN 必须使用相同 checkpoint、数据、step、warmup、精度和学习率。
 
+### 9.1 如何阅读结果
+
+训练 JSON 中最重要的字段是：
+
+- `losses`：每一步 FP32 loss。短步测试只检查数值有限，不能据此判断模型已经收敛。
+- `first_step_time_s`：首步耗时。CINN 模式包含首次 trace/编译，必须和稳态指标分开报告。
+- `mean_steady_step_time_s`、`steady_fps`：去掉 `warmup_steps` 后的训练速度；当前 batch size 为 1。
+- `optimizer`、`learning_rate`：确认是否真正更新了参数。`learning_rate=0` 时是 `no-update/clear-grad`，属于性能/功能冒烟。
+
+推理 JSON 中最重要的字段是：
+
+- `scope`：当前测试是多模态 teacher-forced forward logits，不是完整的 autoregressive `generate`。
+- `first_step_latency_ms`：包含 CINN 首次编译的首步延迟。
+- `mean_steady_latency_ms`、`steady_fps`：去掉 warmup 后的稳态延迟和吞吐。
+- `logits_checksum`、`logits_abs_checksum`：有限性和粗粒度回归信号，不是任务精度，也不要求动态图与 CINN 位级相等。
+
+性能比较只使用稳态字段：训练吞吐提升为 `(CINN steady_fps / dynamic steady_fps - 1) * 100%`；推理延迟降低为 `(dynamic mean_steady_latency_ms - CINN mean_steady_latency_ms) / dynamic mean_steady_latency_ms * 100%`。首步编译时间单独列出。
+
+### 9.2 本次清洁克隆冒烟结果
+
+以下结果来自从远端重新拉取测试仓、固定 PaddleFormers commit、使用外部 checkpoint 的 3-step 测试，`warmup_steps=1`、`learning_rate=0`：
+
+| 任务 | 模式 | 首步 | 稳态指标 | CINN 编译 |
+| --- | --- | ---: | ---: | ---: |
+| 训练 | 动态图 | 1.653 s | 12.91 FPS | 不适用 |
+| 训练 | CINN | 118.139 s | 29.77 FPS | 1 次 |
+| 推理 | 动态图 | 820.283 ms | 31.29 FPS（31.964 ms） | 不适用 |
+| 推理 | CINN | 51696.437 ms | 76.90 FPS（13.003 ms） | 1 次 |
+
+这组数据说明 CINN 在本次节点的稳态执行路径已经生效，但首步包含很重的编译开销，不能把首步时间当作稳态加速结果。它是清洁克隆和功能验收记录，不是全量收敛或最终性能报告；正式报告还需要更长 step、更稳定的硬件/软件版本和统一的 cuDNN 环境。当前验证节点存在 cuDNN 编译版本 9.13、运行版本 9.9 不一致警告。
+
 ## 10. PaddleFormers 修改说明
 
 补丁包含：
@@ -183,3 +224,5 @@ gemma3/results/infer-cinn.json
 - CINN train exit 0，loss 有限且有编译标志。
 - dynamic infer exit 0，logits checksum 有限。
 - CINN infer exit 0，checksum 有限且有编译标志。
+
+`run_model_common.sh` 会把上述验收串起来：如果 commit、patch、checkpoint/data hash 或 CINN 编译标志不满足要求，入口会返回非零；它本身不改变 Gemma3 的网络数学定义。

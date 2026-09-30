@@ -3,14 +3,37 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
+MODEL_NAME=$(basename -- "${SCRIPT_DIR}")
 MODE=${CINN_MODE:?CINN_MODE must be dynamic or cinn}
 TASK=${TASK:-train}
 PYTHON_BIN=${PYTHON_BIN:-python}
 PADDLEFORMERS_DIR=${PADDLEFORMERS_DIR:-${REPO_DIR}/../PaddleFormers}
 PADDLEFORMERS_DIR=$(cd -- "${PADDLEFORMERS_DIR}" && pwd)
-EXPECTED_COMMIT=$(tr -d '[:space:]' < "${SCRIPT_DIR}/paddleformers.commit")
+COMMIT_FILE=${SCRIPT_DIR}/paddleformers.commit
+if [[ ! -f "${COMMIT_FILE}" ]]; then
+  echo "ERROR: missing ${COMMIT_FILE}" >&2
+  exit 2
+fi
+EXPECTED_COMMIT=$(tr -d '[:space:]' < "${COMMIT_FILE}")
 ACTUAL_COMMIT=$(git -C "${PADDLEFORMERS_DIR}" rev-parse HEAD)
-PATCH_FILE=${SCRIPT_DIR}/patches/paddleformers-gemma3-cinn.patch
+
+# A model may provide one patch, or select one explicitly with PATCH_FILE.
+PATCH_FILE=${PATCH_FILE:-}
+if [[ -z "${PATCH_FILE}" ]]; then
+  PATCH_CANDIDATES=()
+  for candidate in "${SCRIPT_DIR}/patches"/*.patch; do
+    [[ -f "${candidate}" ]] && PATCH_CANDIDATES+=("${candidate}")
+  done
+  if [[ "${#PATCH_CANDIDATES[@]}" -gt 1 ]]; then
+    echo "ERROR: multiple patches found; set PATCH_FILE explicitly" >&2
+    printf '  %s\n' "${PATCH_CANDIDATES[@]}" >&2
+    exit 3
+  elif [[ "${#PATCH_CANDIDATES[@]}" -eq 1 ]]; then
+    PATCH_FILE=${PATCH_CANDIDATES[0]}
+  fi
+elif [[ "${PATCH_FILE}" != /* ]]; then
+  PATCH_FILE=${SCRIPT_DIR}/${PATCH_FILE}
+fi
 
 if [[ "${ACTUAL_COMMIT}" != "${EXPECTED_COMMIT}" ]]; then
   echo "ERROR: PaddleFormers commit mismatch" >&2
@@ -19,15 +42,19 @@ if [[ "${ACTUAL_COMMIT}" != "${EXPECTED_COMMIT}" ]]; then
   exit 2
 fi
 
-if git -C "${PADDLEFORMERS_DIR}" apply --check --reverse "${PATCH_FILE}" >/dev/null 2>&1; then
-  echo "PaddleFormers patch is already applied."
-elif git -C "${PADDLEFORMERS_DIR}" apply --check "${PATCH_FILE}" >/dev/null 2>&1; then
-  git -C "${PADDLEFORMERS_DIR}" apply "${PATCH_FILE}"
-  echo "Applied Gemma3 CINN compatibility patch."
+if [[ -n "${PATCH_FILE}" ]]; then
+  if git -C "${PADDLEFORMERS_DIR}" apply --check --reverse "${PATCH_FILE}" >/dev/null 2>&1; then
+    echo "PaddleFormers patch is already applied (${MODEL_NAME})."
+  elif git -C "${PADDLEFORMERS_DIR}" apply --check "${PATCH_FILE}" >/dev/null 2>&1; then
+    git -C "${PADDLEFORMERS_DIR}" apply "${PATCH_FILE}"
+    echo "Applied ${MODEL_NAME} PaddleFormers compatibility patch."
+  else
+    echo "ERROR: PaddleFormers tree is neither clean-patchable nor already patched." >&2
+    echo "Inspect: git -C ${PADDLEFORMERS_DIR} status --short" >&2
+    exit 3
+  fi
 else
-  echo "ERROR: PaddleFormers tree is neither clean-patchable nor already patched." >&2
-  echo "Inspect: git -C ${PADDLEFORMERS_DIR} status --short" >&2
-  exit 3
+  echo "No PaddleFormers compatibility patch configured for ${MODEL_NAME}."
 fi
 
 resolve_path() {
@@ -36,7 +63,7 @@ resolve_path() {
     printf '%s\n' "${value}"
   else
     case "${value}" in
-      gemma3/*) printf '%s\n' "${REPO_DIR}/${value}" ;;
+      "${MODEL_NAME}"/*) printf '%s\n' "${REPO_DIR}/${value}" ;;
       *) printf '%s\n' "${SCRIPT_DIR}/${value}" ;;
     esac
   fi
@@ -85,7 +112,7 @@ COMMAND=(
   --output "${OUTPUT}"
 )
 
-echo "mode=${MODE} task=${TASK} gpu=${GPU_ID}"
+echo "model=${MODEL_NAME} mode=${MODE} task=${TASK} gpu=${GPU_ID}"
 echo "paddleformers=${PADDLEFORMERS_DIR}@${ACTUAL_COMMIT}"
 echo "checkpoint=${CHECKPOINT_DIR}"
 echo "data=${DATA_DIR}"
