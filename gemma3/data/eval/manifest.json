@@ -1,0 +1,52 @@
+{
+  "checkpoint": "/root/paddlejob/gpfsspace/luhao/98_BAIDU/CINN/gemma3/checkpoints/gemma3-4b-text4-vision2-bf16",
+  "input": "/root/paddlejob/gpfsspace/luhao/98_BAIDU/CINN/shared_data/multimodal_sft_docling/eval.jsonl",
+  "input_sha256": "405452ff934dc275f0b8ec621a61664d89bceac4e8acd2056cb23de7a38d4caf",
+  "max_length": 512,
+  "records": [
+    {
+      "batch": "batch-00000.npz",
+      "image_count": 1,
+      "sha256": "1ff45038dfcf2363efbadabeb33d8eb892fd4cfe63c3e0dfb80d22701b15950e",
+      "source_row": 0,
+      "valid_tokens": 512
+    },
+    {
+      "batch": "batch-00001.npz",
+      "image_count": 1,
+      "sha256": "fd3f18b9b9145773f54092e60c47b81e2a6d610285456dc494df0356c8933abd",
+      "source_row": 1,
+      "valid_tokens": 512
+    },
+    {
+      "batch": "batch-00002.npz",
+      "image_count": 1,
+      "sha256": "6aa4ea1e54c6550a25ab1ff15bc09788a0a422d82085e3a7501e26f14c41aae6",
+      "source_row": 2,
+      "valid_tokens": 512
+    },
+    {
+      "batch": "batch-00003.npz",
+      "image_count": 1,
+      "sha256": "d0a4acf792365192a246f1fcbb01891b05a78edb67ee2b41d80413620779448f",
+      "source_row": 3,
+      "valid_tokens": 512
+    },
+    {
+      "batch": "batch-00004.npz",
+      "image_count": 1,
+      "sha256": "a46fbc1123fb15db5ad85d8523a01bec5cbd05275e7d795b8baef643e3e888bd",
+      "source_row": 4,
+      "valid_tokens": 512
+    },
+    {
+      "batch": "batch-00005.npz",
+      "image_count": 1,
+      "sha256": "a9c43e59e851ed2745fbbb6062b8a038dd77d8366c40fdd257b6969d579b05b0",
+      "source_row": 5,
+      "valid_tokens": 512
+    }
+  ],
+  "rows": 6,
+  "single_image_only": true
+}
