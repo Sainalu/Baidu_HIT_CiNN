@@ -3,6 +3,7 @@
   "tested_test_suite_commit": "b9eaaf67bd852aef1c1fd105ac7dad17ab2b80da",
   "post_test_hardening_commit": "fdd644198ee19cc6b55bbbf38e3a0cdb907aafdf",
   "latest_portability_fix_commit": "1cd3fac239177323d5f9d5ba28e062017641d3d3",
+  "remote_paddleformers_clone_verified": true,
   "paddleformers_commit": "941b463475ef0bbb3f88e2d1e1bcee4181f98e0b",
   "clone_directory": "/tmp/cinn-clone-test-20260930-4UVt4y",
   "checkpoint_weight_sha256": "33029a880dc17d16abdac2327e7891bbb1fb7483bfaaf4d962916c5fa8f4f75c",
@@ -30,5 +31,7 @@
     "Paddle reported a cuDNN build/runtime mismatch: build 9.13, runtime 9.9."
     ,
     "Post-test hardening was validated from additional fresh clones, including ignored LOCATION.local checkpoint resolution and model-prefixed output paths."
+    ,
+    "A fresh HTTPS clone from the official PaddleFormers GitHub repository was checked out at the pinned commit; the test repository then applied its patch and completed a dynamic inference smoke run."
   ]
 }
