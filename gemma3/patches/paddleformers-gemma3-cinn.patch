@@ -1,5 +1,5 @@
 diff --git a/paddleformers/datasets/template/template.py b/paddleformers/datasets/template/template.py
-index bd450cdb00a0903827b0e29eb75ba211b7d0ef4b..7498d86fefce924562bb961b7dd4e9f6b2d73609 100644
+index bd450cdb..7498d86f 100644
 --- a/paddleformers/datasets/template/template.py
 +++ b/paddleformers/datasets/template/template.py
 @@ -971,6 +971,22 @@ register_template(
@@ -25,11 +25,84 @@ index bd450cdb00a0903827b0e29eb75ba211b7d0ef4b..7498d86fefce924562bb961b7dd4e9f6
  register_template(
      name="granite",
      format_user=StringFormatter(
+diff --git a/paddleformers/generation/utils.py b/paddleformers/generation/utils.py
+index 72ad3f6b..9e8f582a 100644
+--- a/paddleformers/generation/utils.py
++++ b/paddleformers/generation/utils.py
+@@ -72,18 +72,9 @@ def _make_sliding_window_mask(input_shape, past_key_values_length=0, window_size
+     # Total sequence length = historical sequence length + current sequence length (for generating complete mask)
+     total_length = past_key_values_length + seq_length
+ 
+-    # Initialize mask with all False values
+-    mask = paddle.zeros((seq_length, total_length), dtype=paddle.bool)
+-
+-    for i in range(seq_length):
+-        # Absolute position of current location in the total sequence (including historical sequence)
+-        current_pos = past_key_values_length + i
+-        # Window start position: max(0, current position - window size + 1)
+-        start = max(0, current_pos - window_size + 1)
+-        # Window end position: current position (causal mask restriction, cannot exceed self)
+-        end = current_pos + 1  # Slice is left closed and right open, so+1
+-        # Mark window range as True (allow attention)
+-        mask[i, start:end] = True
++    query_positions = paddle.arange(past_key_values_length, total_length, dtype="int64").unsqueeze(-1)
++    key_positions = paddle.arange(total_length, dtype="int64").unsqueeze(0)
++    mask = (key_positions <= query_positions) & (key_positions > query_positions - window_size)
+ 
+     # Expand dimensions to [bsz, 1, tgt_seq_len, src_seq_len]
+     mask = mask.unsqueeze(0).unsqueeze(0)
+@@ -386,6 +377,14 @@ class GenerationMixin(object):
+     def _prepare_decoder_attention_mask(
+         attention_mask, input_shape, past_key_values_length, dtype, sliding_window_size=None, **kwargs
+     ):
++        if dtype == paddle.float16:
++            dtype_min = -65504.0
++        elif dtype == paddle.bfloat16:
++            dtype_min = -3.3895313892515355e38
++        elif dtype == paddle.float32:
++            dtype_min = -3.4028234663852886e38
++        else:
++            dtype_min = -1.7976931348623157e308
+         # Step 1: Process input mask to generate basic expanded mask
+         if attention_mask is not None:
+             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+@@ -447,19 +446,19 @@ class GenerationMixin(object):
+         # Step 2: Convert boolean mask to numerical mask (adapt to different devices)
+         if get_env_device() in ["npu", "mlu", "intel_hpu"]:
+             x = paddle.to_tensor(0.0, dtype="float32")
+-            y = paddle.to_tensor(paddle.finfo(dtype).min, dtype="float32")
++            y = paddle.to_tensor(dtype_min, dtype="float32")
+             expanded_attn_mask = paddle.where(expanded_attn_mask.cast("bool"), x, y).astype(dtype)
+         elif get_env_device() == "xpu":
+             x = paddle.to_tensor(0.0, dtype="float32")
+             y = paddle.to_tensor(-1.7005809656952787e38, dtype="float32")
+             expanded_attn_mask = paddle.where(expanded_attn_mask.cast("bool"), x, y)
+         elif get_env_device() == "gcu":
+-            min_val = paddle.finfo(dtype).min
++            min_val = dtype_min
+             x = paddle.to_tensor(0.0, dtype=dtype)
+             y = paddle.to_tensor(min_val, dtype=dtype)
+             expanded_attn_mask = paddle.where(expanded_attn_mask.cast("bool"), x, y).astype(dtype)
+         else:
+-            expanded_attn_mask = paddle.where(expanded_attn_mask.cast("bool"), 0.0, paddle.finfo(dtype).min)
++            expanded_attn_mask = paddle.where(expanded_attn_mask.cast("bool"), 0.0, dtype_min)
+             expanded_attn_mask = expanded_attn_mask.astype(dtype)
+         return expanded_attn_mask
+ 
 diff --git a/paddleformers/transformers/gemma3/modeling.py b/paddleformers/transformers/gemma3/modeling.py
-index fa2b3bed3d850c71d6e84158ed7cd541a478839f..ab4a8116274903cf32381979fcdf197ebde37658 100644
+index fa2b3bed..68b58368 100644
 --- a/paddleformers/transformers/gemma3/modeling.py
 +++ b/paddleformers/transformers/gemma3/modeling.py
-@@ -487,6 +487,7 @@ class Gemma3PreTrainedModel(PretrainedModel):
+@@ -76,6 +76,8 @@ def _convert_hf_vision_tensor(target_key: str, tensor: paddle.Tensor) -> paddle.
+ 
+ def _use_high_precision_cublas_for_fp32(tensor: paddle.Tensor) -> None:
+     """Match Torch's default FP32 GEMM policy before multimodal computation."""
++    if not paddle.in_dynamic_mode():
++        return
+     if tensor.dtype != paddle.float32 or not tensor.place.is_gpu_place():
+         return
+ 
+@@ -487,6 +489,7 @@ class Gemma3PreTrainedModel(PretrainedModel):
                  model_prefix=f"{model_prefix}language_model.",
                  include_lm_head=cls.__name__ != "Gemma3Model",
                  source_prefix="language_model.",
@@ -37,11 +110,41 @@ index fa2b3bed3d850c71d6e84158ed7cd541a478839f..ab4a8116274903cf32381979fcdf197e
              )
              target_state_dict = model.state_dict()
              for hf_key, tensor in _iter_hf_tensors(pretrained_model_name_or_path):
+@@ -623,12 +626,13 @@ class Gemma3Model(Gemma3PreTrainedModel):
+         else:
+             special_image_mask = input_ids == self.config.image_token_index
+ 
+-        n_image_tokens = int(special_image_mask.astype("int64").sum().item())
+-        n_image_features = int(image_features.shape[0] * image_features.shape[1])
+-        if n_image_tokens != n_image_features:
+-            raise ValueError(
+-                f"Image features and image tokens do not match, tokens: {n_image_tokens}, features: {n_image_features}"
+-            )
++        if paddle.in_dynamic_mode():
++            n_image_tokens = int(special_image_mask.astype("int64").sum().item())
++            n_image_features = int(image_features.shape[0] * image_features.shape[1])
++            if n_image_tokens != n_image_features:
++                raise ValueError(
++                    f"Image features and image tokens do not match, tokens: {n_image_tokens}, features: {n_image_features}"
++                )
+         return special_image_mask.unsqueeze(-1).expand_as(inputs_embeds)
+ 
+     def forward(
 diff --git a/paddleformers/transformers/gemma3/multimodal_text_modeling.py b/paddleformers/transformers/gemma3/multimodal_text_modeling.py
-index 99d211bcb63f440d2295246b0bcc2518261f0dc5..2b1debddbf2a018b4e2108b8996159125c3a99ec 100644
+index 99d211bc..27d2e484 100644
 --- a/paddleformers/transformers/gemma3/multimodal_text_modeling.py
 +++ b/paddleformers/transformers/gemma3/multimodal_text_modeling.py
-@@ -179,6 +179,7 @@ def load_hf_text_state_dict(
+@@ -66,9 +66,6 @@ def _restore_padding_query_rows(
+         return causal_mask
+ 
+     query_padding = attention_mask[:, cache_length : cache_length + seq_length] == 0
+-    if not paddle.any(query_padding):
+-        return causal_mask
+-
+     query_padding = query_padding.reshape([query_padding.shape[0], 1, query_padding.shape[1], 1])
+     if causal_mask.dtype == paddle.bool:
+         replacement = paddle.ones_like(causal_mask)
+@@ -179,6 +176,7 @@ def load_hf_text_state_dict(
      model_prefix: str = "",
      include_lm_head: bool = False,
      source_prefix: str = "",
@@ -49,7 +152,7 @@ index 99d211bcb63f440d2295246b0bcc2518261f0dc5..2b1debddbf2a018b4e2108b899615912
  ):
      state_dict = {}
      qkv_buffers = defaultdict(dict)
-@@ -212,6 +213,8 @@ def load_hf_text_state_dict(
+@@ -212,6 +210,8 @@ def load_hf_text_state_dict(
  
          layer_suffix = hf_key[len("model.layers.") :]
          layer_id, rest = layer_suffix.split(".", 1)
@@ -58,3 +161,255 @@ index 99d211bcb63f440d2295246b0bcc2518261f0dc5..2b1debddbf2a018b4e2108b899615912
          prefix = f"{model_prefix}layers.{layer_id}"
  
          if rest in {
+diff --git a/paddleformers/transformers/gemma3_text/modeling.py b/paddleformers/transformers/gemma3_text/modeling.py
+index ae07f6af..6acf7607 100644
+--- a/paddleformers/transformers/gemma3_text/modeling.py
++++ b/paddleformers/transformers/gemma3_text/modeling.py
+@@ -82,11 +82,7 @@ class Gemma3RMSNorm(nn.Layer):
+             self.enable_sequence_parallel()
+ 
+     def _norm(self, x):
+-        if paddle.in_dynamic_mode():
+-            with paddle.amp.auto_cast(False):
+-                return x * paddle.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+-        else:
+-            return x * paddle.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
++        return x * paddle.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+ 
+     def forward(self, x):
+         output = self._norm(x.float())
+@@ -157,17 +153,16 @@ class Gemma3RotaryEmbedding(nn.Layer):
+ 
+     @dynamic_rope_update
+     def forward(self, x, position_ids):
+-        with paddle.amp.auto_cast(enable=False):
+-            inv_freq_expanded = self.inv_freq[None, :, None].float().expand([position_ids.shape[0], -1, 1])
++        inv_freq_expanded = self.inv_freq[None, :, None].float().expand([position_ids.shape[0], -1, 1])
+ 
+-            position_ids_expanded = position_ids[:, None, :].float()
++        position_ids_expanded = position_ids[:, None, :].float()
+ 
+-            freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
++        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+ 
+-            emb = paddle.concat((freqs, freqs), axis=-1)
++        emb = paddle.concat((freqs, freqs), axis=-1)
+ 
+-            cos = emb.cos() * self.attention_scaling
+-            sin = emb.sin() * self.attention_scaling
++        cos = emb.cos() * self.attention_scaling
++        sin = emb.sin() * self.attention_scaling
+ 
+         return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
+ 
+@@ -368,14 +363,9 @@ class Gemma3DecoderLayer(nn.Layer):
+         hidden_states = self.post_feedforward_layernorm(hidden_states)
+         hidden_states = residual + hidden_states
+ 
+-        outputs = (hidden_states,)
+-
+         if output_attentions:
+-            outputs += (self_attn_weights,)
+-        if type(outputs) is tuple and len(outputs) == 1:
+-            outputs = outputs[0]
+-
+-        return outputs
++            return hidden_states, self_attn_weights
++        return hidden_states
+ 
+ 
+ class Gemma3PreTrainedModel(PretrainedModel):
+@@ -623,12 +613,11 @@ class Gemma3TextModel(Gemma3PreTrainedModel):
+             if output_hidden_states:
+                 all_hidden_states += (hidden_states,)
+ 
+-            has_gradient = not hidden_states.stop_gradient
+             if (
+                 self.config.recompute_granularity == "full"
+                 and self.config.recompute_method == "uniform"
+                 and self.config.recompute_num_layers == 1
+-                and has_gradient
++                and not hidden_states.stop_gradient
+             ):
+                 layer_outputs = self.recompute_training(
+                     decoder_layer,
+@@ -673,9 +662,14 @@ class Gemma3TextModel(Gemma3PreTrainedModel):
+ 
+         # Return outputs
+         if not return_dict:
+-            return tuple(
+-                v for v in [hidden_states, past_key_values, all_hidden_states, all_self_attns] if v is not None
+-            )
++            outputs = (hidden_states,)
++            if past_key_values is not None:
++                outputs += (past_key_values,)
++            if all_hidden_states is not None:
++                outputs += (all_hidden_states,)
++            if all_self_attns is not None:
++                outputs += (all_self_attns,)
++            return outputs
+ 
+         return BaseModelOutputWithPast(
+             last_hidden_state=hidden_states,
+diff --git a/paddleformers/transformers/tensor_parallel_utils.py b/paddleformers/transformers/tensor_parallel_utils.py
+index 53df4acb..3a448505 100644
+--- a/paddleformers/transformers/tensor_parallel_utils.py
++++ b/paddleformers/transformers/tensor_parallel_utils.py
+@@ -66,20 +66,20 @@ def parallel_matmul(
+         except ImportError:
+             pass
+ 
+-    is_fleet_init = True
+-    try:
+-        hcg = fleet.get_hybrid_communicate_group()
+-        model_parallel_group = hcg.get_model_parallel_group()
+-        tensor_model_parallel_size = hcg.get_model_parallel_world_size()
+-    except:
+-        is_fleet_init = False
++    if tensor_model_parallel_size == 1:
++        logits = paddle.matmul(lm_output, logit_weights, transpose_y=transpose_y)
++        if bias is not None:
++            logits += bias
++        return logits
+ 
+     is_logit_weight_distributed = logit_weights.is_distributed
+     #  `is_distributed` in static mode is always False
+     if in_declarative_mode() and tensor_model_parallel_size > 1:
+         is_logit_weight_distributed = True
+ 
+-    if is_fleet_init and tensor_model_parallel_size > 1 and is_logit_weight_distributed:
++    if is_logit_weight_distributed:
++        hcg = fleet.get_hybrid_communicate_group()
++        model_parallel_group = hcg.get_model_parallel_group()
+         input_parallel = paddle.distributed.collective._c_identity(lm_output, group=model_parallel_group)
+ 
+         if transpose_y:
+diff --git a/tests/transformers/gemma3_text/test_modeling.py b/tests/transformers/gemma3_text/test_modeling.py
+index 0b12943b..fe9356da 100644
+--- a/tests/transformers/gemma3_text/test_modeling.py
++++ b/tests/transformers/gemma3_text/test_modeling.py
+@@ -16,6 +16,7 @@ from __future__ import annotations
+ 
+ import tempfile
+ import unittest
++from unittest import mock
+ 
+ import numpy as np
+ import paddle
+@@ -25,6 +26,7 @@ from paddleformers.transformers import (
+     Gemma3TextConfig,
+     Gemma3TextModel,
+ )
++from paddleformers.generation.utils import _make_sliding_window_mask
+ from tests.testing_utils import gpu_device_initializer, require_package
+ from tests.transformers.test_configuration_common import ConfigTester
+ from tests.transformers.test_generation_utils import GenerationTesterMixin
+@@ -340,6 +342,61 @@ class Gemma3TextModelTester:
+             self.parent.assertEqual(result[0].shape, [self.batch_size, self.seq_length, self.vocab_size])
+ 
+ 
++class Gemma3CINNCompatibilityTest(unittest.TestCase):
++    def test_sliding_window_mask_matches_reference(self):
++        for batch_size, seq_length, past_length, window_size in ((1, 7, 0, 3), (2, 5, 4, 4)):
++            expected = paddle.zeros([seq_length, past_length + seq_length], dtype="bool")
++            for index in range(seq_length):
++                current = past_length + index
++                expected[index, max(0, current - window_size + 1) : current + 1] = True
++            expected = expected.unsqueeze(0).unsqueeze(0).tile([batch_size, 1, 1, 1])
++
++            actual = _make_sliding_window_mask(
++                (batch_size, seq_length), past_key_values_length=past_length, window_size=window_size
++            )
++
++            self.assertTrue(paddle.equal_all(actual, expected))
++
++    def test_rms_norm_does_not_enter_python_autocast_context(self):
++        config = Gemma3TextConfig(
++            vocab_size=64,
++            hidden_size=32,
++            intermediate_size=64,
++            num_hidden_layers=1,
++            num_attention_heads=4,
++            num_key_value_heads=2,
++            head_dim=8,
++            max_position_embeddings=64,
++        )
++        model = Gemma3TextModel(config)
++        x = paddle.randn([2, 4, 32])
++
++        with mock.patch("paddle.amp.auto_cast", side_effect=AssertionError("unexpected auto_cast context")):
++            output = model.norm(x)
++
++        self.assertEqual(output.shape, x.shape)
++
++    def test_attention_mask_dtype_min_matches_paddle_finfo(self):
++        model = Gemma3TextModel(
++            Gemma3TextConfig(
++                vocab_size=64,
++                hidden_size=32,
++                intermediate_size=64,
++                num_hidden_layers=1,
++                num_attention_heads=4,
++                num_key_value_heads=2,
++                head_dim=8,
++                max_position_embeddings=64,
++            )
++        )
++        attention_mask = paddle.ones([1, 4], dtype="bool")
++        attention_mask[:, -1] = False
++
++        for dtype in (paddle.float16, paddle.bfloat16, paddle.float32):
++            actual = model._prepare_decoder_attention_mask(attention_mask, (1, 4), 0, dtype)
++            self.assertEqual(float(actual.min()), float(paddle.finfo(dtype).min))
++
++
+ class Gemma3TextModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
+     base_model_class = Gemma3TextModel
+     return_dict = False
+diff --git a/tests/transformers/test_tensor_parallel_utils.py b/tests/transformers/test_tensor_parallel_utils.py
+new file mode 100644
+index 00000000..85e2d217
+--- /dev/null
++++ b/tests/transformers/test_tensor_parallel_utils.py
+@@ -0,0 +1,41 @@
++# Copyright (c) 2026 PaddlePaddle Authors. All Rights Reserved.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++
++import unittest
++from unittest import mock
++
++import paddle
++import paddle.nn as nn
++
++from paddleformers.transformers.tensor_parallel_utils import parallel_matmul
++
++
++class ParallelMatmulTest(unittest.TestCase):
++    def test_single_card_does_not_access_uninitialized_fleet_group(self):
++        x = paddle.randn([2, 3])
++        weight = nn.Linear(3, 5, bias_attr=False).weight
++
++        with mock.patch(
++            "paddleformers.transformers.tensor_parallel_utils.fleet.get_hybrid_communicate_group",
++            side_effect=AssertionError("fleet is not initialized"),
++        ) as get_group:
++            actual = parallel_matmul(
++                x,
++                weight,
++                transpose_y=False,
++                tensor_model_parallel_size=1,
++                tensor_parallel_output=False,
++            )
++
++        expected = paddle.matmul(x, weight)
++        self.assertTrue(paddle.allclose(actual, expected))
++        get_group.assert_not_called()
++
++
++if __name__ == "__main__":
++    unittest.main()

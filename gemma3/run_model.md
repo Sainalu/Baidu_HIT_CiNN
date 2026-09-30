@@ -13,7 +13,7 @@
 | run_model.py | 一次运行一个 task，负责加载、计算、计时和 task JSON |
 | run_model_common.sh | commit、patch、路径、环境、日志和 all-task 编排 |
 | scripts/aggregate_results.py | 合并 train/infer JSON 为 results/<mode>.json |
-| patches/paddleformers-gemma3-cinn.patch | Gemma3 数据/checkpoint 接入补丁 |
+| patches/paddleformers-gemma3-cinn.patch | Gemma3 全图 CINN 兼容补丁 |
 | paddleformers.commit | 要求的上游 commit |
 | checkpoint/README.md | checkpoint 结构、精度、大小和 SHA256 |
 
@@ -21,16 +21,19 @@ run_model.sh 和 run_model_cinn.sh 在 shell 层启动两个独立的 Python 进
 
 ## 2. 静态边界与动态图隔离
 
-本版本不把整个 Gemma3 多模态 forward、训练 loss 或推理 wrapper 包成一个 to_static 图。经过验证的 CINN 边界只有语言模型各 decoder layer 的 MLP 子层：
+本版本回归此前已经完成长跑精度验证的全 wrapper 路线。CINN 模式会分别把训练和推理
+wrapper 用 `paddle.jit.to_static(full_graph=True)` 包装，模型 forward、loss 以及反向图
+进入同一个静态编译边界：
 
 ~~~text
-CINN:    model.model.language_model.layers[*].mlp
-动态图:  vision tower、图像特征/占位符融合、mask、RoPE、RMSNorm、
-         attention、decoder layer loop、final norm、lm_head、loss、
-         训练/推理 wrapper
+CINN:    Gemma3TrainGraph 或 Gemma3InferGraph（完整多模态 wrapper）
+动态图:  checkpoint/data 编排、Python 训练循环和 optimizer step
 ~~~
 
-CINN flags 只在 cinn 模式开启；flags 本身不会自动把所有动态图代码转换成静态图。无法支持静态图的部分保持原始动态图执行，也不通过补丁改写它们。梯度可以跨越 MLP 子图回传，因此训练仍包含完整的 forward、backward、optimizer step 和 clear-grad。
+CINN flags 只在 cinn 模式开启；真正触发转换的是入口中显式的 `to_static`。完整 wrapper
+之外的 checkpoint/data 编排和 optimizer step 仍由 Python 动态执行。为使模型内部能够被
+完整 trace，补丁会处理手册中列出的静态兼容点（mask、autocast、动态 tuple、单卡 Fleet
+等），但不改变模型的数学目标。
 
 ## 3. 环境
 
@@ -156,7 +159,7 @@ results/raw/dynamic-infer.json
 results/dynamic.json
 ~~~
 
-run_model_cinn.sh 生成对应的 cinn 文件。日志和 JSON 都是运行产物，不属于 Git 交付物；它们只在当前机器的 logs/ 和 results/ 下保存，目录通过 .gitkeep 保留。
+run_model_cinn.sh 生成对应的 cinn 文件。日志和 JSON 都是运行产物，不属于 Git 交付物；它们只在当前机器的 logs/ 和 results/ 下保存，目录通过 .gitkeep 保留。CINN 模式首步包含完整 wrapper 的动转静和懒编译，稳态指标必须单独报告。
 
 训练 JSON 重点字段：
 
@@ -164,7 +167,7 @@ run_model_cinn.sh 生成对应的 cinn 文件。日志和 JSON 都是运行产�
 - first_step_time_s：包含首步 trace/编译；
 - mean_steady_step_time_s、steady_fps：排除 warmup 后的稳态训练速度；
 - optimizer、learning_rate：是否执行参数更新；
-- cinn_scope、static_subgraph_count：实际静态子图范围和数量。
+- cinn_scope、static_subgraph_count、outer_graph_mode：实际静态边界；CINN 模式分别为完整 train/infer wrapper、1、static，动态图模式为 none、0、dynamic。
 
 推理 JSON 重点字段：
 
@@ -183,16 +186,22 @@ CINN 唯一可信的日志标志是：
 Compiling subgraph with CINN backend
 ~~~
 
-run_model_cinn.sh 和 train.sh/infer.sh 的 cinn 模式发现该标志缺失时返回非零。当前四层文本 checkpoint 的 static_subgraph_count 应为 4；编译 marker 数量是后端事件数，不一定等于包装层数。
+run_model_cinn.sh 和 train.sh/infer.sh 的 cinn 模式发现该标志缺失时返回非零。当前 CINN
+模式的 `static_subgraph_count` 为 1，表示一个显式的完整 wrapper；编译 marker 数量是
+后端事件数，不一定等于内部生成的子图数量。
 
 ## 11. PaddleFormers 修改说明
 
-补丁只负责：
+补丁负责完整 wrapper 静态化所需的兼容处理，以及数据/checkpoint 接入：
 
 - 注册 Gemma3 多模态数据模板；
+- sliding-window mask 向量化和 attention mask dtype 常量替换；
+- 避免静态 trace 中的 Python autocast、动态 tuple 和 Tensor `.item()`/`.place` 条件；
 - 支持高精度缩层 checkpoint 加载时过滤多余权重。
+- 单卡 TP=1 时不访问未初始化的 Fleet 通信组；
+- 配套 Gemma3 静态兼容回归测试。
 
-补丁不修改 sliding-window mask、paddle.finfo、autocast、RoPE、RMSNorm、attention、动态 tuple、item/place 条件或 Fleet 路径。它们属于当前不支持或尚未验证的静态范围，保持动态图。
+这些修改只为让模型进入静态编译，不改变动态图与 CINN 的模型数学目标。
 
 ## 12. 运行前检查
 

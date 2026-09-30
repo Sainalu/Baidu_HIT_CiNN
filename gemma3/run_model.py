@@ -54,15 +54,8 @@ CHECKPOINT_FILES = (
     "tokenizer_config.json",
 )
 
-# Gemma3 currently has a small, verified CINN boundary.  The multimodal and
-# attention paths stay in imperative mode until they have an independent
-# static-graph validation; enabling the CINN flags alone does not move them.
-CINN_SCOPE = "model.model.language_model.layers[*].mlp"
-DYNAMIC_SCOPE = (
-    "vision_tower, multimodal fusion, image-token mask, attention mask, "
-    "rotary embedding, RMSNorm, attention, decoder layer loop, final norm, "
-    "lm_head, loss"
-)
+CINN_SCOPE = "full train/infer wrapper"
+DYNAMIC_SCOPE = "checkpoint/data orchestration and optimizer step"
 
 
 def sha256(path: Path) -> str:
@@ -139,30 +132,6 @@ def load_batch(path: Path, include_labels: bool):
         return tuple(paddle.to_tensor(data[key]) for key in keys)
 
 
-def enable_partial_cinn(model):
-    """Wrap only the validated MLP subgraphs with CINN.
-
-    The surrounding Gemma3 multimodal forward remains a normal dynamic-graph
-    call.  Keeping the boundary at a Layer that receives/returns tensors also
-    lets autograd pass gradients through the compiled subgraph.
-    """
-    if not USE_CINN:
-        return 0
-
-    try:
-        layers = list(model.model.language_model.layers)
-    except AttributeError as exc:
-        raise RuntimeError("Gemma3 language-model layer layout changed; cannot select MLP subgraphs") from exc
-    if not layers:
-        raise RuntimeError("Gemma3 language model has no decoder layers")
-
-    for index, layer in enumerate(layers):
-        if not hasattr(layer, "mlp"):
-            raise RuntimeError(f"Gemma3 decoder layer {index} has no MLP sublayer")
-        layer.mlp = paddle.jit.to_static(layer.mlp, full_graph=True)
-    return len(layers)
-
-
 class Gemma3TrainGraph(paddle.nn.Layer):
     def __init__(self, model):
         super().__init__()
@@ -237,6 +206,8 @@ def environment():
 def run_train(model, files):
     model.train()
     graph = Gemma3TrainGraph(model)
+    if USE_CINN:
+        graph = paddle.jit.to_static(graph, full_graph=True)
     optimizer = None
     if ARGS.learning_rate > 0:
         optimizer = paddle.optimizer.AdamW(
@@ -281,6 +252,8 @@ def run_train(model, files):
 def run_infer(model, files):
     model.eval()
     graph = Gemma3InferGraph(model)
+    if USE_CINN:
+        graph = paddle.jit.to_static(graph, full_graph=True)
     batches = [load_batch(path, include_labels=False) for path in files]
     records = []
     with paddle.no_grad():
@@ -330,7 +303,6 @@ def main():
     model = Gemma3ForConditionalGeneration.from_pretrained(
         str(checkpoint), dtype=checkpoint_manifest["dtype"]
     )
-    static_subgraph_count = enable_partial_cinn(model)
     result = run_train(model, files) if ARGS.task == "train" else run_infer(model, files)
     result.update(
         {
@@ -358,9 +330,9 @@ def main():
             "warmup_steps": ARGS.warmup_steps,
             "first_step_includes_lazy_trace_and_compile": USE_CINN,
             "cinn_scope": CINN_SCOPE if USE_CINN else "none",
-            "static_subgraph_count": static_subgraph_count,
-            "dynamic_scope": DYNAMIC_SCOPE,
-            "outer_graph_mode": "dynamic",
+            "static_subgraph_count": 1 if USE_CINN else 0,
+            "dynamic_scope": DYNAMIC_SCOPE if USE_CINN else "entire model",
+            "outer_graph_mode": "static" if USE_CINN else "dynamic",
             "environment": environment(),
         }
     )
