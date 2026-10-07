@@ -16,6 +16,8 @@ data/data.npz 为历史 ImageNet100 子集的前320张训练和16张验证图片
 
 ## 运行
 
+历史完整子集的文件列表、预处理、标签映射及 data.npz 大小/SHA256 见 full_dataset_reference.json；该较大的数据文件不包含在本次快速测试包内。
+
 ```bash
 export PADDLECLAS_DIR=/path/to/PaddleClas
 export CHECKPOINT_DIR=/path/to/local-weights
