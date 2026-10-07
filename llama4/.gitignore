@@ -1,0 +1,5 @@
+results/
+logs/
+checkpoint/*.pdparams
+checkpoint/*.pdstate
+checkpoint/*.tmp

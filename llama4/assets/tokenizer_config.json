@@ -1,0 +1,14 @@
+{
+  "backend": "tokenizers",
+  "bos_token": "<|begin_of_text|>",
+  "clean_up_tokenization_spaces": false,
+  "eos_token": "<|eot|>",
+  "additional_special_tokens": [
+    "<|header_start|>",
+    "<|header_end|>"
+  ],
+  "model_max_length": 8192,
+  "pad_token": "<|end_of_text|>",
+  "tokenizer_class": "PreTrainedTokenizerFast",
+  "unk_token": "<unk>"
+}
