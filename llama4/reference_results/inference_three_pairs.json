@@ -1,0 +1,42 @@
+{
+  "runs": [
+    {
+      "pair": 1,
+      "dynamic_ms": 6.593158468604088,
+      "cinn_ms": 1.013258472084999,
+      "logits_max_abs_diff": 3.5762786865234375e-06,
+      "throughput_gain_percent": 550.6887087790378
+    },
+    {
+      "pair": 2,
+      "dynamic_ms": 6.542311981320381,
+      "cinn_ms": 1.0248515754938126,
+      "logits_max_abs_diff": 3.5762786865234375e-06,
+      "throughput_gain_percent": 538.3667779569004
+    },
+    {
+      "pair": 3,
+      "dynamic_ms": 6.598463281989098,
+      "cinn_ms": 1.0255016386508942,
+      "logits_max_abs_diff": 3.5762786865234375e-06,
+      "throughput_gain_percent": 543.4376146555701
+    }
+  ],
+  "median_dynamic_ms": 6.593158468604088,
+  "median_cinn_ms": 1.0248515754938126,
+  "throughput_gain_percent": 543.328129288112,
+  "speedup": 6.43328129288112,
+  "latency_reduction_percent": 84.45583280950935,
+  "original_weights_and_inputs_verified": true,
+  "metadata": {
+    "kind": "text",
+    "mode": "dynamic",
+    "initial_parameter_hash": "07d760a17ae8e51373f521c1e2e59d6c671a0d8fc902f5114b443b04b74014c4",
+    "parameters": 152992,
+    "source_commit": "37661f1c716bcb98a7163722430210ddb30576a4",
+    "paddle": "3.5.0.dev20260722",
+    "paddle_commit": "08de6be508389d5277b02e78fbc8742f1ed78160",
+    "scope": "random tiny model, synthetic tokens/image, 20-step smoke only"
+  },
+  "scope": "FP32 V100S batch1 seq64 tiny152992 parameters; fixed forward, not generation; 3 process pairs, 50 warmup, 200 timed iterations each. Original source/checkpoint. Not current develop or full model."
+}

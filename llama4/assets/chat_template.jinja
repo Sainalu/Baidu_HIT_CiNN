@@ -1,0 +1,1 @@
+{% for message in messages %}{% if loop.first %}{{ bos_token }}{% endif %}{{ '<|header_start|>' + message['role'] + '<|header_end|>\n\n' }}{{ message['content'] + '<|eot|>' }}{% endfor %}{% if add_generation_prompt %}{{ '<|header_start|>assistant<|header_end|>\n\n' }}{% endif %}
