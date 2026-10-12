@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-07",
+  "source_tree": "511d04c22df3787ab3053c065d5c79d1fa8420ef",
+  "dynamic_steps": 20,
+  "cinn_steps": 20,
+  "gradient_keys_each": 25,
+  "all_gradients_finite": true,
+  "nonzero_gradients_disappeared": false,
+  "first_gradient_max_abs_diff": 7.3909759521484375e-6,
+  "dynamic_portable_vs_original_loss_max_abs_diff": 9.5367431640625e-7,
+  "cinn_portable_vs_original_loss_max_abs_diff": 9.5367431640625e-7,
+  "cinn_compile_marker_present": true,
+  "independent_common_checkpoint_inference": "passed; see comparison.json"
+}

@@ -1,0 +1,44 @@
+{
+  "scope": "random 2-layer hidden64 OLMo2; 20 GSM8K prefix-LM train / 4 heldout; FP32; default full forward CINN; no model formula change or operator blacklist",
+  "dynamic": {
+    "steps": 30000,
+    "initial_parameter_hash": "dacde691a52cecda6c15b49497c0b85f19b7d17c95dc23f70d28a0ec7a573cda",
+    "first100_loss": 11.982511558532714,
+    "last500_loss": 0.003588191343820654,
+    "preceding500_loss": 0.003714869199786335,
+    "validation_initial": 12.64964485168457,
+    "validation_final": 11.060064554214478,
+    "validation_best": 10.87321424484253,
+    "training_median_ms": 10.258007794618607,
+    "log_directories": [
+      "/root/cinn_test/results/olmo2_tiny_20261007_dynamic10000",
+      "/root/cinn_test/results/olmo2_tiny_20261007_dynamic30000"
+    ]
+  },
+  "cinn": {
+    "steps": 30000,
+    "initial_parameter_hash": "dacde691a52cecda6c15b49497c0b85f19b7d17c95dc23f70d28a0ec7a573cda",
+    "first100_loss": 11.98251160621643,
+    "last500_loss": 0.003525799937895499,
+    "preceding500_loss": 0.0036421246131649243,
+    "validation_initial": 12.64964485168457,
+    "validation_final": 11.054883003234863,
+    "validation_best": 10.83368968963623,
+    "training_median_ms": 3.231136128306389,
+    "log_directories": [
+      "/root/cinn_test/results/olmo2_tiny_20261007_cinn10000",
+      "/root/cinn_test/results/olmo2_tiny_20261007_cinn30000"
+    ]
+  },
+  "loss_max_abs_diff": 2.6051318664103746,
+  "tail10pct_mae": 0.00016297446499811486,
+  "training_throughput_gain_pct": 217.47371163824587,
+  "inference": {
+    "dynamic_ms": 4.687467589974403,
+    "cinn_ms": 0.7883664220571518,
+    "throughput_gain_pct": 494.5798119791802,
+    "logits_max_abs_diff": 1.3828277587890625e-05,
+    "checkpoint_sha256": "585e1d8921049b6deb840e111650672b5003c3304d8816011b8ff68be6ce8ace",
+    "scope": "same trained dynamic checkpoint; separate processes; fixed prefix forward, not generation; single pair"
+  }
+}
