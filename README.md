@@ -51,3 +51,5 @@ CHECKPOINT_DIR=/path/to/checkpoint \
 ```
 
 具体环境变量、数据位置、checkpoint 和任务参数以对应模型的 `run_model.md` 为准。后续新增模型沿用同一项目级入口约定。
+
+新增模型入口：[Llama Guard4 图文 tiny](llama_guard4/run_model.md)（FP32框架测试，权重仅本地提供）。
