@@ -1,0 +1,7 @@
+results/
+__pycache__/
+*.pyc
+logs/
+checkpoint/*.pdparams
+checkpoint/*.pdstate
+checkpoint/*.tmp
