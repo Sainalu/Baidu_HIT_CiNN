@@ -1,0 +1,14 @@
+{
+  "_from_auto": true,
+  "add_prefix_space": false,
+  "backend": "tokenizers",
+  "bos_token": "<beginning_of_sentence>",
+  "clean_up_tokenization_spaces": false,
+  "eos_token": "<end_of_sentence>",
+  "errors": "replace",
+  "is_local": false,
+  "model_max_length": 8192,
+  "pad_token": "<end_of_sentence>",
+  "tokenizer_class": "GPT2Tokenizer",
+  "unk_token": "<end_of_document>"
+}
