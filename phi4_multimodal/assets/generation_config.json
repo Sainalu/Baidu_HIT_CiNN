@@ -1,0 +1,11 @@
+{
+  "_from_model_config": true,
+  "bos_token_id": 199999,
+  "eos_token_id": [
+    199999,
+    200020
+  ],
+  "max_length": 20,
+  "no_repeat_ngram_size": 0,
+  "pad_token_id": 199999
+}

@@ -1,0 +1,32 @@
+{
+  "processor_class": "Phi4MultimodalProcessor",
+  "image_processor_type": "Phi4MultimodalImageProcessor",
+  "feature_extractor_type": "Phi4MultimodalFeatureExtractor",
+  "size": {
+    "height": 28,
+    "width": 28
+  },
+  "patch_size": 14,
+  "dynamic_hd": 4,
+  "image_mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "image_std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "feature_size": 16,
+  "sampling_rate": 16000,
+  "hop_length": 160,
+  "n_fft": 512,
+  "win_length": 400,
+  "preemphasis": 0.97,
+  "audio_compression_rate": 8,
+  "audio_downsample_rate": 1,
+  "audio_feat_stride": 1,
+  "mel_min_frequency": 0,
+  "mel_max_frequency": 7690
+}
